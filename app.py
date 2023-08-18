@@ -1,8 +1,10 @@
+import os
 import subprocess
 import telebot
 import logging
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, InlineQueryResultArticle, InputTextMessageContent
 
+os.system('pip install pyTelegramBotAPI')
 
 # loggin
 logging.basicConfig(level=logging.INFO)
