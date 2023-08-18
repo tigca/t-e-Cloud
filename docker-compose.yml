@@ -1,9 +1,0 @@
-version: "3"
-services:
-    main:
-        container_name: "t-e-Cloud"
-        build:
-            context: .
-        stop_signal: SIGINT
-        restart: never
-        command: python3 -m teagram
