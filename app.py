@@ -20,6 +20,7 @@ dp = Dispatcher(bot)
 
 url = 'mongodb+srv://triggercloudbot:6PXxLZUwEQ0eS72O@cluster0.www1qqg.mongodb.net/?retryWrites=true&w=majority'
 db: AsyncIOMotorCollection = AsyncIOMotorClient(url).db.cloud
+tarifi = ['basic', 'premium', 'student']
 
 def to_async(func):
     @wraps(func)
@@ -65,7 +66,29 @@ def process_inline_command(command):
     else:
         return "🚫 Команда не допустима"
 
+async def change_tarif(user_id: int, tarif: str) -> bool:
+    try:
+        if not (user := await db.find_one({'_id': user_id})):
+            await db.insert_one({
+                '_id': user_id,
+                'tarif': tarif
+            })
+            
+            return True
+        else:
+            await db.update_one({
+                '_id': user_id
+            }, {'$set': {
+                'tarif': tarif
+            }})
 
+            return True
+    except Exception as error:
+        print(error)
+
+        return False
+
+        
 
 @dp.message_handler(commands=['start'])
 async def start(message: Message):
@@ -123,33 +146,82 @@ async def account_menu(call: CallbackQuery):
 
 @dp.callback_query_handler(lambda _: True)
 async def handle_button_click(call: CallbackQuery):
-    if call.data == 'tarif':
-        tries = 3
+    try:
+        if call.data == 'tarif':
+            tries = 3
 
-        async def find():
-            nonlocal tries
+            async def find():
+                nonlocal tries
 
-            if tries:
-                tries -= 1
-                user = await db.find_one({
-                    '_id': call.from_user.id,
-                })
+                if tries:
+                    tries -= 1
+                    user = await db.find_one({
+                        '_id': call.from_user.id,
+                    })
 
-                if user:
-                    tarif = user['tarif']
+                    if user:
+                        tarif = user['tarif']
 
-                    await bot.edit_message_text(
-                        f'💵 Ваш тариф: <b>{tarif}</b>:',
-                        call.message.chat.id,
-                        call.message.message_id
-                    )
-                else:
-                    await db.insert_one({'_id': call.from_user.id, 'tarif': 'free'})
-                    await asyncio.sleep(1)
-                    await find()
-        
-        await find()
+                        keyboard = InlineKeyboardMarkup()
+                        keyboard.row(
+                            InlineKeyboardButton('Сменить тариф', callback_data='change_tarif'),
+                            InlineKeyboardButton('🚫 Закрыть', callback_data='button3')
+                        )
 
+                        await bot.edit_message_text(
+                            f'💵 Ваш тариф: <b>{tarif}</b>:',
+                            call.message.chat.id,
+                            call.message.message_id,
+                            parse_mode='HTML'
+                        )
+                        await bot.edit_message_reply_markup(
+                            call.message.chat.id,
+                            call.message.message_id,
+                            call.inline_message_id,
+                            keyboard
+                        )
+
+                        tries = 0
+                    else:
+                        await db.insert_one({'_id': call.from_user.id, 'tarif': 'free'})
+                        await asyncio.sleep(1)
+                        await find()
+            
+            await find()
+        elif (data := call.data.split('_'))[0] == 'change':
+            keyboard = InlineKeyboardMarkup()
+            keyboard.add(InlineKeyboardButton('Student free/MONTH', callback_data=f'confirm_student'))
+            keyboard.add(InlineKeyboardButton('Basic 10 rub/MONTH', callback_data=f'confirm_basic'))
+            keyboard.add(InlineKeyboardButton('Premium 15 rub/MONTH', callback_data=f'confirm_premium'))
+
+            await bot.edit_message_text(
+                f'➡ Выберите тариф',
+                call.message.chat.id,
+                call.message.message_id
+            )
+            await bot.edit_message_reply_markup(
+                call.message.chat.id,
+                call.message.message_id,
+                call.inline_message_id,
+                keyboard
+            )
+        elif (data := call.data.split('_'))[0] == 'confirm':
+            # ваватиг сюда суй свою оплату ес чо
+
+            if await change_tarif(call.from_user.id, data[-1]):
+                await bot.edit_message_text(
+                    f'Вы сменили тариф на {data[-1]}',
+                    call.message.chat.id,
+                    call.message.message_id
+                )
+                await bot.edit_message_reply_markup(
+                    call.message.chat.id,
+                    call.message.message_id,
+                    call.inline_message_id,
+                    InlineKeyboardMarkup()
+                )
+    except:
+        pass   
 
 @dp.message_handler(commands=['t'])
 async def execute_command(message):
