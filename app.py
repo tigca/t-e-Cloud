@@ -20,7 +20,7 @@ bot = telebot.TeleBot(bot_token)
 @bot.message_handler(commands=['start'])
 def start(message):
     keyboard = InlineKeyboardMarkup()
-    button1 = InlineKeyboardButton('🎛️ Репозитории', callback_data='button1')
+    button1 = InlineKeyboardButton('🎛️ Аккаунт', callback_data='button1')
     button2 = InlineKeyboardButton('📖 FAQ', callback_data='button2')
     button3 = InlineKeyboardButton('🚫 Закрыть', callback_data='button3')
     keyboard.row(button1, button2)
