@@ -9,16 +9,17 @@ from aiogram.types import (
 
 import asyncio
 from functools import wraps, partial
+from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorClient
 
 logging.basicConfig(level=logging.INFO)
 with open('config.txt', 'r') as file:
     bot_token = file.read()
 
-# login
 bot = Bot(bot_token)
 dp = Dispatcher(bot)
 
-# handler /start command
+url = 'mongodb+srv://triggercloudbot:6PXxLZUwEQ0eS72O@cluster0.www1qqg.mongodb.net/?retryWrites=true&w=majority'
+db: AsyncIOMotorCollection = AsyncIOMotorClient(url).db.cloud
 
 def to_async(func):
     @wraps(func)
@@ -104,6 +105,7 @@ async def account_menu(call: CallbackQuery):
         InlineKeyboardButton('💵 Тарифы', callback_data='tarif')
     )
     keyboard.row(InlineKeyboardButton('☕ Поддержка', url='https://t.me/+8OUdVbortIw4MTQy'))
+    keyboard.row(InlineKeyboardButton('🚫 Закрыть', callback_data='button3'))
 
     await bot.edit_message_text(
         '<b>❇️ Передвигайся по кнопкам</b>',
@@ -120,13 +122,33 @@ async def account_menu(call: CallbackQuery):
 
 
 @dp.callback_query_handler(lambda _: True)
-async def handle_button_click(call):
-    if call.data == 'button1':
-        # button1
-        await bot.send_message(call.message.chat.id, 'soon...')
-    elif call.data == 'button2':
-        # button2
-        await bot.send_message(call.message.chat.id, 'soon...')
+async def handle_button_click(call: CallbackQuery):
+    if call.data == 'tarif':
+        tries = 3
+
+        async def find():
+            nonlocal tries
+
+            if tries:
+                tries -= 1
+                user = await db.find_one({
+                    '_id': call.from_user.id,
+                })
+
+                if user:
+                    tarif = user['tarif']
+
+                    await bot.edit_message_text(
+                        f'💵 Ваш тариф: <b>{tarif}</b>:',
+                        call.message.chat.id,
+                        call.message.message_id
+                    )
+                else:
+                    await db.insert_one({'_id': call.from_user.id, 'tarif': 'free'})
+                    await asyncio.sleep(1)
+                    await find()
+        
+        await find()
 
 
 @dp.message_handler(commands=['t'])
