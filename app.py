@@ -173,7 +173,7 @@ async def handle_button_click(call: CallbackQuery):
                         )
 
                         await bot.edit_message_text(
-                            f'⏺ Всего: <b>{total} мб</b>\n'
+                            f'❇️ Всего: <b>{total} мб</b>\n'
                             f'🔥 Потрачено: <b>{used} мб</b>',
                             call.message.chat.id,
                             call.message.message_id,
@@ -198,7 +198,7 @@ async def handle_button_click(call: CallbackQuery):
             keyboard.add(InlineKeyboardButton('256MB ', callback_data='mbbuy_256'))
             keyboard.add(InlineKeyboardButton('512MB ', callback_data='mbbuy_512'))
             keyboard.add(InlineKeyboardButton('1024MB', callback_data='mbbuy_1024'))
-            keyboard.add(InlineKeyboardButton('Вернуться', callback_data='data'))
+            keyboard.add(InlineKeyboardButton('🧿 Назад', callback_data='data'))
 
             await bot.edit_message_text(
                 f'➡ Выберите тариф',
@@ -261,4 +261,4 @@ async def handle_inline_t_command(query):
     )
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True, on_startup=print('Started'))
+    executor.start_polling(dp, skip_updates=True, on_startup=print('[-] started'))
