@@ -17,6 +17,7 @@ with open('config.txt', 'r') as file:
 
 bot = Bot(bot_token)
 dp = Dispatcher(bot)
+users = {}
 
 url = 'mongodb+srv://triggercloudbot:6PXxLZUwEQ0eS72O@cluster0.www1qqg.mongodb.net/?retryWrites=true&w=majority'
 db: AsyncIOMotorCollection = AsyncIOMotorClient(url).db.cloud
@@ -91,7 +92,27 @@ async def buymb(user_id: int, mb) -> bool:
 
         return False
 
-        
+@dp.message_handler(commands=['buymb'])
+async def custombuyhandler(message: Message):
+    global users
+
+    if users.get(message.from_user.id, False):
+        tobuy = None
+
+        try:
+            tobuy = int(message.get_args().split()[0])
+        except:
+            del users[message.from_user.id]
+            return await message.reply('❌ Вы неправильно указали мегабайты! (Пример: buymb 512)')
+
+        if (mb := await buymb(message.from_user.id, tobuy)):
+            del users[message.from_user.id]
+
+            await message.reply(f'💵 Вы купили <b>{str(tobuy)}МБ</b>', parse_mode='HTML')
+        else:
+            del users[message.from_user.id]
+            
+            await message.reply(f'❌ Ошибка: {mb}')
 
 @dp.message_handler(commands=['start'])
 async def start(message: Message):
@@ -198,6 +219,7 @@ async def handle_button_click(call: CallbackQuery):
             keyboard.add(InlineKeyboardButton('256MB ', callback_data='mbbuy_256'))
             keyboard.add(InlineKeyboardButton('512MB ', callback_data='mbbuy_512'))
             keyboard.add(InlineKeyboardButton('1024MB', callback_data='mbbuy_1024'))
+            keyboard.add(InlineKeyboardButton('КастомMB', callback_data='custombuy'))
             keyboard.add(InlineKeyboardButton('🧿 Назад', callback_data='data'))
 
             await bot.edit_message_text(
@@ -226,6 +248,12 @@ async def handle_button_click(call: CallbackQuery):
                     call.inline_message_id,
                     InlineKeyboardMarkup().add(InlineKeyboardButton('➡ Вернуться', callback_data='data'))
                 )
+        elif call.data == 'custombuy':
+            global users
+
+            users[call.from_user.id] = True
+
+            await call.answer('Используйте команду: "/buymb кол-во"', show_alert=True)
     except:
         pass   
 
