@@ -11,6 +11,8 @@ import asyncio
 from functools import wraps, partial
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorClient
 
+from utils import database
+
 logging.basicConfig(level=logging.INFO)
 with open('config.txt', 'r') as file:
     bot_token = file.read()
@@ -20,7 +22,7 @@ dp = Dispatcher(bot)
 users = {}
 
 url = 'mongodb+srv://triggercloudbot:6PXxLZUwEQ0eS72O@cluster0.www1qqg.mongodb.net/?retryWrites=true&w=majority'
-db: AsyncIOMotorCollection = AsyncIOMotorClient(url).db.cloud
+db = database(AsyncIOMotorClient(url).db.cloud)
 
 def to_async(func):
     @wraps(func)
@@ -68,29 +70,49 @@ def process_inline_command(command):
 
 async def buymb(user_id: int, mb) -> bool:
     try:
-        if not (user := await db.find_one({'_id': user_id})):
-            await db.insert_one({
+        if not (user := await db.find(user_id)):
+            await db.insert({
                 '_id': user_id,
+                'users': [],
                 'total': mb,
                 'used': 0
             })
             
             return True
         else:
-            user = await db.find_one({'_id': user_id})
+            user = await db.find(user_id)
             total = user['total']
 
-            await db.update_one({
-                '_id': user_id
-            }, {'$set': {
-                'total': total + mb
-            }})
+            await db.edit(user_id, 'total', total+mb)
 
             return True
     except Exception as error:
         print(error)
 
         return False
+
+@dp.message_handler(commands=['createuser'])
+async def createuser(message: Message):
+    name = message.get_args()
+    if not name:
+        return await message.reply('Укажите ник')
+    
+    name = name.split()[0]
+
+    if len(name) < 4 or len(name) > 20:
+        return await message.reply('❌ Длина ника должна быть больше 4 и меньше 20')
+
+    users = await db.find(message.from_user.id)
+    is_copy = await db.db.find_one({'user': name})
+
+    if users:
+        if users['user']:
+            return await message.reply('❌ Нельзя создавать больше 1 сервера')
+        elif is_copy:
+            return await message.reply('❌ Сервер с таким названием уже существует')
+        
+    await db.edit(message.from_user.id, 'user', name)
+    await message.reply(f'✔ Вы создали сервер, <b>{name}</b>', parse_mode='HTML')
 
 @dp.message_handler(commands=['buymb'])
 async def custombuyhandler(message: Message):
@@ -129,7 +151,7 @@ async def start(message: Message):
                       '🐯 А тут, <a href="https://t.me/TriggerEarth">наш канал</a>\n' \
                       '🧑‍💻 И вот тут, <a href="https://t.me/trigger_chat">чат тех. поддержки</a>\n\n' \
                       '💚 Спасибо <a href="http://VIP_IPru_tw.t.me">VIP*</a>\n\n' \
-                      '🤴 Версия бота: 0.1 [Beta] ⚡</b>'
+                      '🤴 Версия бота: 0.2 [Beta] ⚡</b>'
     await message.reply(
         welcome_message, 
         reply_markup=keyboard, 
@@ -179,9 +201,7 @@ async def handle_button_click(call: CallbackQuery):
 
                 if tries:
                     tries -= 1
-                    user = await db.find_one({
-                        '_id': call.from_user.id,
-                    })
+                    user = await db.find(call.from_user.id)
 
                     if user:
                         used = user['used']
@@ -209,7 +229,7 @@ async def handle_button_click(call: CallbackQuery):
 
                         tries = 0
                     else:
-                        await db.insert_one({'_id': call.from_user.id, 'used': 0, 'total': 0})
+                        await db.insert({'_id': call.from_user.id, 'user': '', 'used': 0, 'total': 0})
                         await asyncio.sleep(0.5)
                         await find()
             
@@ -254,8 +274,34 @@ async def handle_button_click(call: CallbackQuery):
             users[call.from_user.id] = True
 
             await call.answer('Используйте команду: "/buymb кол-во"', show_alert=True)
-    except:
-        pass   
+        elif call.data == 'connections':
+            if not (users := await db.find(call.from_user.id)):
+                await bot.edit_message_text(
+                    'Используйте команду "/createuser"',
+                    call.message.chat.id,
+                    call.message.message_id
+                )
+
+                return await bot.edit_message_reply_markup(
+                    call.message.chat.id,
+                    call.message.message_id,
+                    call.inline_message_id,
+                    InlineKeyboardMarkup().add(InlineKeyboardButton('➡ Вернуться', callback_data='account'))
+                )
+            
+            keyboard = InlineKeyboardMarkup()
+            user = (await db.find(call.from_user.id))['user']
+            
+            keyboard.add(InlineKeyboardButton('➡ Вернуться', callback_data='account'))
+
+            await bot.edit_message_text(
+                'Ваши подключения: \n'
+                f'ssh -p 56222 {user}@52.29.107.118',
+                call.message.chat.id,
+                call.message.message_id
+            )
+    except Exception as error:
+        print(error)
 
 @dp.message_handler(commands=['t'])
 async def execute_command(message):
