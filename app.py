@@ -53,6 +53,10 @@ def run(command: str) -> str:
         return e.output.decode('utf-8')
 
 @to_async
+def check(cmd: str):
+    return subprocess.check_output(cmd, shell=True).decode()
+
+@to_async
 def process_inline_command(command):
     safe = safe_command(command)
     if command.startswith(("ls", "dir", "pwd", "git", "cat")) and safe:
@@ -275,7 +279,7 @@ async def handle_button_click(call: CallbackQuery):
 
             await call.answer('Используйте команду: "/buymb кол-во"', show_alert=True)
         elif call.data == 'connections':
-            if not (users := await db.find(call.from_user.id)):
+            if not (users := await db.find(call.from_user.id))['user']:
                 await bot.edit_message_text(
                     'Используйте команду "/createuser"',
                     call.message.chat.id,
@@ -301,7 +305,8 @@ async def handle_button_click(call: CallbackQuery):
                 call.message.message_id
             )
     except Exception as error:
-        print(error)
+        import traceback
+        print(traceback.format_exc())
 
 @dp.message_handler(commands=['t'])
 async def execute_command(message):
@@ -334,5 +339,39 @@ async def handle_inline_t_command(query):
         ]
     )
 
+async def check_res():
+    while True:
+        users = await db.db.find_one({})
+        print(users)
+        for user in users:
+            if (us := user['user']):
+                output = (await check(f'sudo du -sh /home/{us}')).decode()
+                used = output.split()[0].lower()
+                total = 0
+                if 'k' in used:
+                    used.replace('k', '')
+                    total += float(used)
+                if 'g' in used:
+                    used.replace('g', '')
+                    total += float(used)
+                if 'm' in used:
+                    used.repalce('m', '')
+                    total += float(used)
+
+                if used > user['total']:
+                    import re
+
+                    pids = (await check(f'fuser -v /home/{us}')).decode()
+
+                    pid_pattern = r'\s\d+\s'
+                    pids = [pid.strip() for pid in re.findall(pid_pattern, pids)]
+
+                    for pid in pids:
+                        print(await check(f'kill {int(pid)}'))
+
+        await asyncio.sleep(60)
+
+
 if __name__ == "__main__":
+    asyncio.ensure_future(check_res())
     executor.start_polling(dp, skip_updates=True, on_startup=print('[-] started'))
